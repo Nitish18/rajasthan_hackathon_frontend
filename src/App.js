@@ -84,7 +84,7 @@ class App extends React.Component {
       .then(response => response.json())
       .then(({ data }) => {
         console.log("qwerty");
-        const geoJsonData = getGeoJsonData(data);
+        const geoJsonData = getGeoJsonData(data);  
         this.lightThemeMapRef.getSource('patients').setData(geoJsonData);
         this.fetchLegend(year);
       })
