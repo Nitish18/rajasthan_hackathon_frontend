@@ -1,67 +1,149 @@
-import React, { Component } from 'react';
+// dependencies
+import React from 'react';
 import mapboxgl from 'mapbox-gl';
+import MapBoxGLCompare from 'mapbox-gl-compare';
 import Slider from 'rc-slider';
-import { addHeatMap } from './helpers';
+// helpers
+import { addHeatMap, getGeoJsonData } from './helpers';
+// config
+import { API_URL, years } from './config';
+// components
+import {
+  AppWrapper,
+  MapContainer,
+  Content,
+  SliderContainer,
+  Header,
+  Logo,
+} from './styled';
+import Legend from './components/Legend';
+import Menu from './components/Menu';
+// assets
 import 'rc-slider/assets/index.css';
-
-const style = {
-  width: '100vw',
-  height: '100vh'
-};
+import 'roboto-fontface';
+import './slider.css';
+import './App.css';
 
 mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN;
 
-const styles = {
-  slider: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    minHeight: 64,
-    background: 'rgba(255,255,255,0.5)',
-  }
-};
-
-const marks = {
-  0: '1999',
-  10: '2000',
-  20: '2001',
-  30: '2002',
-  40: '2003',
-  50: '2004',
-  60: '2005',
-  70: '2006',
-  80: '2007',
-  90: '2008',
-  100: ''
-};
-
-const log = value => {
-  console.log(value);
-}
-
-const InputSlider = () => {
+const InputSlider = ({ marks, onChange }) => {
   return (
-    <div style={styles.slider}>
-      <Slider min={-10} marks={marks} step={null} onChange={log} defaultValue={20} />
-    </div>
+    <SliderContainer>
+      <Slider
+        min={-10}
+        marks={marks}
+        step={null}
+        defaultValue={0}
+        max={110}
+        onChange={onChange}
+      />
+    </SliderContainer>
   );
-}
+};
 
-class App extends Component {
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      trainingComplete: false,
+      legendRows: [],
+      isMenuOpen: false,
+    };
+  }
   componentDidMount() {
-    const map = new mapboxgl.Map({
-      container: this.map,
-      style: 'mapbox://styles/mapbox/dark-v9',
+    // create a light themed map
+    this.lightThemeMapRef = new mapboxgl.Map({
+      container: this.lightThemeMap,
+      style: 'mapbox://styles/mapbox/light-v9',
       zoom: 2,
     });
-    addHeatMap(map);
+    // adding a heatmap layers to both the maps
+    addHeatMap(this.lightThemeMapRef);
+    this.fetchLegend(years[0]);
+  }
+  onTrainingComplete = () => {
+    this.setState({ trainingComplete: true, isMenuOpen: false }, () => {
+      // create a dark themed map
+      this.darkThemeMapRef = new mapboxgl.Map({
+        container: this.darkThemeMap,
+        style: 'mapbox://styles/mapbox/dark-v9',
+        zoom: 2,
+      });
+      addHeatMap(this.darkThemeMapRef, true);
+      // create a mapbox-gl-compare map
+      new MapBoxGLCompare(this.lightThemeMapRef, this.darkThemeMapRef, {
+        // mousemove: true
+      });
+    });
+  }
+  onYearChange = value => {
+    const year = years[value];
+    const url = `${API_URL}/getData?year=${year}`;
+    // fetch real data
+    fetch(url)
+      .then(response => response.json())
+      .then(({ data }) => {
+        console.log("qwerty");
+        const geoJsonData = getGeoJsonData(data);
+        this.lightThemeMapRef.getSource('patients').setData(geoJsonData);
+        this.fetchLegend(year);
+      })
+      .catch(err => {
+        console.error(err);
+      });
+    const predictUrl = `${API_URL}/getPredictionResults?year=${year}`;
+    fetch(predictUrl)
+      .then(response => response.json())
+      .then(({ data }) => {
+        const geoJsonData = getGeoJsonData(data);
+        if (this.state.trainingComplete) {
+          this.darkThemeMapRef.getSource('patients').setData(geoJsonData);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+  fetchLegend = year => {
+    const url = `${API_URL}/getLegend?year=${year}`;
+    fetch(url)
+      .then(response => response.json())
+      .then(legendRows => {
+        this.setState({ legendRows });
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+  toggleMenu = () => {
+    this.setState({
+      isMenuOpen: !this.state.isMenuOpen
+    });
   }
   render() {
     return (
-      <div>
-        <div style={style} ref={map => { this.map = map; }} />
-        <InputSlider />
-      </div>
+      <AppWrapper>
+        <Menu
+          onTrainingComplete={this.onTrainingComplete}
+          isMenuOpen={this.state.isMenuOpen}
+          toggleMenu={this.toggleMenu}
+        />
+        <Header>
+          <Logo>predicto</Logo>
+        </Header>
+        <Content isMenuOpen={this.state.isMenuOpen}>
+          <MapContainer innerRef={map => { this.lightThemeMap = map; }} />
+          {
+            this.state.trainingComplete &&
+            <MapContainer innerRef={map => { this.darkThemeMap = map; }} />
+          }
+          <InputSlider marks={years} onChange={this.onYearChange} />
+          {
+            (this.state.legendRows.length) &&
+            <Legend rows={this.state.legendRows} />
+          }
+        </Content>
+      </AppWrapper>
     );
   }
 }
