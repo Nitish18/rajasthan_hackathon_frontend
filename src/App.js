@@ -101,7 +101,7 @@ class App extends React.Component {
         }
       })
       .catch(err => {
-        console.error(err);
+        console.error(err);  
       });
   }
   fetchLegend = year => {
