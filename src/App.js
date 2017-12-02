@@ -71,7 +71,7 @@ class App extends React.Component {
       });
       addHeatMap(this.darkThemeMapRef, true);
       // create a mapbox-gl-compare map
-      new MapBoxGLCompare(this.lightThemeMapRef, this.darkThemeMapRef, {
+      new MapBoxGLCompare(this.lightThemeMapRef, this.darkThemeMapRef, {  
         // mousemove: true
       });
     });
